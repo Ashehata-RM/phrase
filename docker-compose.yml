@@ -59,7 +59,7 @@ services:
 
     depends_on:
       - nginx
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ahmed.sramadan89@gmail.com --agree-tos --no-eff-email -d app.sofed.io -d *.app.sofed.io
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ahmed.sramadan89@gmail.com --agree-tos --no-eff-email -d phrase.sofed.io -d *.phrase.sofed.io
 
 volumes:
   db-data:
