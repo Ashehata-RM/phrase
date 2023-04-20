@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    command: python app.py
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://postgres:mysecretpassword@db:5432/mydatabase
+      REDIS_URL: redis://redis:6379/0
+      FLASK_ENV: development
+      FLASK_APP: app.py
+    ports:
+      - "5000:5000"
+    restart: always
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: mydatabase
+    volumes:
+      - db-data:/var/lib/postgresql/data/
+    restart: always
+
+  redis:
+    image: redis:6
+    command: redis-server --requirepass mysecretpassword
+    volumes:
+      - redis-data:/data
+    restart: always
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    volumes:
+      - certbot-data:/var/www/certbot
+      - nginx-data:/etc/nginx/
+
+  certbot:
+    image: certbot/certbot
+    command: certonly --webroot --webroot-path /var/www/certbot --email your-email@example.com --agree-tos --no-eff-email -d example.com -d www.example.com
+    volumes:
+      - certbot-data:/var/www/certbot
+      - nginx-data:/etc/nginx/
+    depends_on:
+      - nginx
+    entrypoint: /bin/sh -c "trap : TERM INT; sleep infinity & wait"
+
+volumes:
+  db-data:
+  redis-data:
+  certbot-data:
+  nginx-data:
