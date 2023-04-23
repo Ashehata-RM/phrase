@@ -1,69 +1,78 @@
-version: '3'
+version: '3.9'
 
 services:
-  app:
-    build:
-      context: ./application
-    restart: always
-    environment:
-      APP_HOST: 0.0.0.0
-      APP_PORT: 5000
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      DATABASE_URI: postgresql+psycopg2://app_user:app_password@db/app_db
-    depends_on:
-      - db
-      - redis
-    networks:
-      - backend
-    volumes:
-      - ./app:/app
   db:
-    image: postgres:12-alpine
+    image: postgres
     restart: always
     environment:
-      POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: app_password
-      POSTGRES_DB: app_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     volumes:
-      - db-data:/var/lib/postgresql/data
-    networks:
-      - backend
-  redis:
-    image: redis:alpine
-    restart: always
-    networks:
-      - backend
-  nginx:
-    image: nginx:alpine
+      - pgdata:/var/lib/postgresql/data
+  adminer:
+    image: adminer
     restart: always
     ports:
-      - 80:80
-      - 443:443
-    depends_on:
-      - app
-    networks:
-      - backend
-      - frontend
+      - "8080:8080"
+  readonly_user:
+    image: postgres
+    command: "postgres -c max_connections=200 -c shared_buffers=256MB -c max_wal_senders=3 -c wal_level=replica"
+    environment:
+      POSTGRES_USER: readonly
+      POSTGRES_PASSWORD: readonlypassword
+      POSTGRES_DB: mydb
+  app1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: gunicorn myapp.wsgi:application -w 4 -b 0.0.0.0:8000
+    environment:
+      - DJANGO_SETTINGS_MODULE=myapp.settings
     volumes:
-      - ./nginx/conf:/etc/nginx/conf.d
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
+      - static_data:/code/static
+      - media_data:/code/media
+    depends_on:
+      - db
+    expose:
+      - "8000"
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: gunicorn myapp.wsgi:application -w 4 -b 0.0.0.0:8001
+    environment:
+      - DJANGO_SETTINGS_MODULE=myapp.settings
+    volumes:
+      - static_data:/code/static
+      - media_data:/code/media
+    depends_on:
+      - db
+    expose:
+      - "8001"
+  nginx:
+    image: nginx:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - static_data:/code/static
+      - media_data:/code/media
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app1
+      - app2
   certbot:
     image: certbot/certbot
-    restart: unless-stopped
+    command: certonly --webroot --webroot-path=/var/www/html -d phrase.sofed.io
     volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-      - ./app/static:/var/www/html
-
+      - ./nginx/ssl:/etc/letsencrypt
     depends_on:
       - nginx
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ahmed.sramadan89@gmail.com --agree-tos --no-eff-email -d 3.121.200.138 -d *.3.121.200.138
 
 volumes:
-  db-data:
-
-networks:
-  backend:
-  frontend:
+  pgdata:
+  static_data:
+  media_data:
