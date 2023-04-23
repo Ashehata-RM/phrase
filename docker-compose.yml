@@ -10,23 +10,41 @@ services:
       APP_PORT: 5000
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      DATABASE_URI: postgresql+psycopg2://app_user:app_password@db/app_db
+      DATABASE_URI: postgresql+psycopg2://readonly:readonlypassword@db/mydb
     depends_on:
       - db
       - redis
+    ports:
+      - "5000:5000"
     networks:
       - backend
     volumes:
-      - ./app:/app
+      - "D:/DEV/phrase/app:/app"
   db:
     image: postgres:12-alpine
     restart: always
     environment:
-      POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: app_password
-      POSTGRES_DB: app_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     volumes:
       - db-data:/var/lib/postgresql/data
+    ports:
+      - "5555:5432"
+    networks:
+      - backend
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+  readonly_user:
+    image: postgres
+    command: "postgres -c max_connections=200 -c shared_buffers=256MB -c max_wal_senders=3 -c wal_level=replica"
+    environment:
+      POSTGRES_USER: readonly
+      POSTGRES_PASSWORD: readonlypassword
+      POSTGRES_DB: mydb
     networks:
       - backend
   redis:
@@ -34,36 +52,9 @@ services:
     restart: always
     networks:
       - backend
-  nginx:
-    image: nginx:alpine
-    restart: always
-    ports:
-      - 80:80
-      - 443:443
-    depends_on:
-      - app
-    networks:
-      - backend
-      - frontend
-    volumes:
-      - ./nginx/conf:/etc/nginx/conf.d
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-  certbot:
-    image: certbot/certbot
-    restart: unless-stopped
-    volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-      - ./app/static:/var/www/html
-
-    depends_on:
-      - nginx
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ahmed.sramadan89@gmail.com --agree-tos --no-eff-email -d 3.121.200.138 -d *.3.121.200.138
 
 volumes:
   db-data:
 
 networks:
   backend:
-  frontend:
